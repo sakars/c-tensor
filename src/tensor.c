@@ -129,8 +129,8 @@ int Tensor_swapaxis(TensorObject *tensor, const TensorShape_t axis1, const Tenso
  * @brief      Slices a tensor along a given axis.
  * @details    This function returns a new tensor object that is a slice of the
  * 		   original tensor along the given axis. The new tensor object
- * 		   shares the same data as the original tensor object, thus requires
- * 		   freeing.
+ * 		   shares the same data as the original tensor object, but increases ref count
+ * 		   thus requires freeing.
 */
 TensorObject Tensor_slice(TensorObject *tensor, const TensorShape_t axis, const TensorShape_t idx) {
 	TensorObject slice;

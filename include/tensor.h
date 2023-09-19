@@ -1,4 +1,5 @@
 
+#pragma once
 typedef double TensorData_t;
 typedef unsigned int TensorShape_t;
 
@@ -11,7 +12,10 @@ struct _TensorObject {
 	TensorShape_t offset;
 };
 
-
+/// @brief Tensor object type. It is not recommended to access the members directly. Not thread safe.
+/// @details The members of this struct are not guaranteed to be stable.
+/// 	   They are definitely not thread safe.
+/// 	   For multi-threaded applications, use the functions in tensor.h
 typedef struct _TensorObject TensorObject;
 
 TensorObject Tensor_new(const TensorShape_t ndim, const TensorShape_t *const shape_template);
