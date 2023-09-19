@@ -11,6 +11,7 @@ struct _TensorObject {
 	TensorShape_t offset;
 };
 
+
 typedef struct _TensorObject TensorObject;
 
 TensorObject Tensor_new(const TensorShape_t ndim, const TensorShape_t *const shape_template);

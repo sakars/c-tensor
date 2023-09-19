@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "tensor.h"
 
+// ---Allocations---
 
 /**
  * @brief      Allocates a new tensor object.
@@ -101,6 +102,8 @@ TensorObject Tensor_clone(TensorObject tensor) {
 	return clone;
 }
 
+// ---Manipulations---
+
 /**
  * @brief      Swaps two axes of a tensor.
  * @details    This function swaps two axes of a tensor. The tensor object
@@ -148,6 +151,8 @@ TensorObject Tensor_slice(TensorObject *tensor, const TensorShape_t axis, const 
 	}
 	return slice;
 }
+
+// ---Data access---
 
 TensorData_t* Tensor_get(TensorObject *tensor, const TensorShape_t *const idx) {
 	TensorData_t *data = tensor->data + tensor->offset;
