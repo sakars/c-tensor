@@ -2,6 +2,7 @@
 #include <CUnit/CUnit.h>
 #include "tensor/parallel.h"
 #include <pthread.h>
+#include <math.h>
 
 struct ThreadCounter {
 	pthread_mutex_t mutex;
@@ -14,7 +15,6 @@ static void* _loop_over_dim_thread_count(void* args) {
 	pthread_mutex_lock(&thc->mutex);
 	thc->count++;
 	pthread_mutex_unlock(&thc->mutex);
-
 	return NULL;
 }
 
@@ -40,6 +40,25 @@ static void test_loop_over_thread_count(void) {
 	Tensor_free(&to);
 }
 
+static TensorData_t findNthPrime(int n) {
+	int i=0;
+	int prime=2;
+	while(i<n) {
+		prime++;
+		int j=2;
+		while(j<prime) {
+			if(prime%j==0) {
+				break;
+			}
+			j++;
+		}
+		if(j==prime) {
+			i++;
+		}
+	}
+	return prime;
+}
+
 static void* _loop_over_dim_write(void* args) {
 	struct loop_args* loop_args = (struct loop_args*)args;
 	TensorObject to = loop_args->obj;
@@ -50,7 +69,7 @@ static void* _loop_over_dim_write(void* args) {
 }
 
 static void test_loop_over_write(void) {
-	TensorObject to = Tensor_new(2, (TensorShape_t[]){2, 6});
+	TensorObject to = Tensor_new(2, (TensorShape_t[]){640, 16});
 	Tensor_loop_over_dim(to, 1, _loop_over_dim_write, (void*)&to);
 	for(TensorShape_t j=0;j<to.shape[1];j++){
 		for(TensorShape_t i=0;i<to.shape[0];i++){

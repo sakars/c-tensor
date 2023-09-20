@@ -8,79 +8,165 @@
 
 static int killThreads=0;
 
-static struct AvailableThread {
-	pthread_mutex_t mutex;
-	pthread_t thread;
-	int available;
+static struct Job {
 	void* (*func)(void *args);
 	void* args;
-	int* jobFinished;
+	pthread_mutex_t* jobFinishedMutex;
+	pthread_cond_t* jobFinished;
+} Job;
+static struct JobQueueElem {
+	struct Job job;
+	struct JobQueueElem* next;
+} JobQueueElem;
+static struct JobQueue {
+	struct JobQueueElem* next;
+	struct JobQueueElem* last;
+	pthread_mutex_t mutex;
+	pthread_cond_t cond;
+} jobQueue = {
+	.next = NULL,
+	.last = NULL
+};
+
+static void JobQueue_push(struct Job job) {
+	struct JobQueueElem* elem = malloc(sizeof(struct JobQueueElem));
+	elem->job = job;
+	elem->next = NULL;
+	if(jobQueue.next == NULL) {
+		jobQueue.next = elem;
+		jobQueue.last = elem;
+	} else {
+		jobQueue.last->next = elem;
+		jobQueue.last = elem;
+	}
+	pthread_cond_signal(&jobQueue.cond);
+}
+
+static struct Job JobQueue_pop(void) {
+	if(jobQueue.next == NULL) {
+		pthread_mutex_unlock(&jobQueue.mutex);
+		return (struct Job){NULL, NULL, NULL};
+	}
+	struct JobQueueElem* elem = jobQueue.next;
+	jobQueue.next = elem->next;
+	if(jobQueue.next == NULL) {
+		jobQueue.last = NULL;
+	}
+	struct Job job = elem->job;
+	free(elem);
+	return job;
+}
+
+static struct WorkerThread {
+	pthread_t thread;
+	size_t id;
 } *available_threads = NULL;
 
-static void* Thread_handler(void* args) {
-	struct AvailableThread* at = (struct AvailableThread*)args;
-	while (1)
-	{
-		if(killThreads) {
-			return NULL;
+static const struct timespec THREAD_SLEEP = {
+	.tv_sec = 10,
+	.tv_nsec = 100000000
+};
+
+static void* WorkerThread_main(void* args) {
+	struct WorkerThread* at = (struct WorkerThread*)args;
+	while(1) {
+		#ifdef DEBUG
+			printf("Thread %lu waiting for queue lock\n", at->id);
+		#endif
+		
+		pthread_mutex_lock(&jobQueue.mutex);
+		
+		#ifdef DEBUG
+			printf("Thread %lu acquired queue lock\n", at->id);
+		#endif
+		
+		while(jobQueue.next == NULL) {
+			
+			#ifdef DEBUG
+				printf("Thread %lu queue empty\n", at->id);
+				printf("Thread %lu releasing queue lock and waiting\n", at->id);
+			#endif
+			
+			pthread_cond_timedwait(&jobQueue.cond, &jobQueue.mutex, &THREAD_SLEEP);
+			if(killThreads) {
+				pthread_mutex_unlock(&jobQueue.mutex);
+				#ifdef DEBUG
+					printf("Thread %lu exiting\n", at->id);
+				#endif
+				return NULL;
+			}
 		}
-		pthread_mutex_lock(&at->mutex);
-		if(at->available) {
-			pthread_mutex_unlock(&at->mutex);
+		struct Job job = JobQueue_pop();
+		
+		#ifdef DEBUG
+			printf("Thread %lu got a job\n", at->id);
+		#endif
+		
+		pthread_mutex_unlock(&jobQueue.mutex);
+		
+		#ifdef DEBUG
+			printf("Thread %lu released queue lock, executing job.\n", at->id);
+		#endif
+
+		if(job.func == NULL) {
+			// should not happen, but just in case.
 			continue;
 		}
-		at->func(at->args);
-		at->func = NULL;
-		at->args = NULL;
-		at->available = 1;
-		*at->jobFinished = 1;
-		pthread_mutex_unlock(&at->mutex);
+		job.func(job.args);
+		pthread_mutex_lock(job.jobFinishedMutex);
+		pthread_cond_broadcast(job.jobFinished);
+		pthread_mutex_unlock(job.jobFinishedMutex);
+
+		#ifdef DEBUG
+			printf("Thread %lu broadcasted job finished\n", at->id);
+		#endif
+		continue;
 	}
+	#ifdef DEBUG
+		printf("Thread %lu exiting\n", at->id);
+	#endif
 	return NULL;
 }
 
 void Tensor_init(void) {
-	available_threads = calloc(TENSOR_LOOP_NUM_THREADS, sizeof(struct AvailableThread));
+	available_threads = calloc(TENSOR_LOOP_NUM_THREADS, sizeof(struct WorkerThread));
 	for(int i = 0; i < TENSOR_LOOP_NUM_THREADS; i++) {
-		pthread_mutex_init(&available_threads[i].mutex, NULL);
-		available_threads[i].available = 1;
-		pthread_create(&available_threads[i].thread, NULL, Thread_handler, &available_threads[i]);
-		// lock the mutex to prevent the thread from running.
-		// pthread_mutex_lock(&available_threads[i].mutex);
+		available_threads[i].id = i;
+		pthread_create(&available_threads[i].thread, NULL, WorkerThread_main, &available_threads[i]);
+		
 	}
 }
+
 
 void Tensor_cleanup(void) {
 	killThreads = 1;
 	for(int i = 0; i < TENSOR_LOOP_NUM_THREADS; i++) {
-		
 		pthread_join(available_threads[i].thread, NULL);
-		pthread_mutex_lock(&available_threads[i].mutex);
-		pthread_mutex_destroy(&available_threads[i].mutex);
 	}
 	free(available_threads);
 	available_threads = NULL;
 }
 
-static struct AvailableThread* Tensor_addTask(void* (*func)(void *args), void* args, int* jobFinished) {
-	// find an available thread.
-	while(1) {
-		for(int i = 0; i < TENSOR_LOOP_NUM_THREADS; i++) {
-			int response = pthread_mutex_trylock(&available_threads[i].mutex);
-			if(response != 0) {
-				continue;
-			}
-			if(available_threads[i].available) {
-				available_threads[i].func = func;
-				available_threads[i].args = args;
-				available_threads[i].available = 0;
-				available_threads[i].jobFinished = jobFinished;
-				pthread_mutex_unlock(&available_threads[i].mutex);
-				return &available_threads[i];
-			}
-			pthread_mutex_unlock(&available_threads[i].mutex);
-		}
+static void Tensor_addTask(void* (*func)(void *args), void* args, pthread_mutex_t* jobFinishedMutex, pthread_cond_t* jobFinished) {
+	// if available_threads is NULL, then we need to initialize it.
+	if(available_threads == NULL) {
+		Tensor_init();
 	}
+	// construct the job and push it to the queue.
+	pthread_mutex_lock(&jobQueue.mutex);
+
+	#ifdef DEBUG
+		printf("addTask acquired queue lock\n");
+	#endif
+	JobQueue_push((struct Job){
+		.func = func, 
+		.args = args, 
+		.jobFinished = jobFinished,
+		.jobFinishedMutex = jobFinishedMutex});
+	pthread_mutex_unlock(&jobQueue.mutex);
+	#ifdef DEBUG
+		printf("addTask released queue lock\n");
+	#endif
 }
 
 
@@ -88,10 +174,10 @@ void Tensor_loop_over_dim(TensorObject obj, const TensorShape_t axis, void *(*fu
 	// This should work, since no slice shares data with a different slice and by declaring The tensor non-thread safe,
 	// we can guarantee that no other thread will access the tensor while this function is running.
 
-	// allocate loop_args and threads.
+	// allocate loop_args, threads and job finish flags.
 	struct loop_args* loop_args = calloc(obj.shape[axis], sizeof(struct loop_args));
-	int* jobsFinished = calloc(obj.shape[axis], sizeof(int));
-	struct AvailableThread** threads = calloc(obj.shape[axis], sizeof(struct AvailableThread*));
+	pthread_cond_t* jobsFinished = calloc(obj.shape[axis], sizeof(pthread_cond_t));
+	pthread_mutex_t* jobsFinishedMutex = calloc(obj.shape[axis], sizeof(pthread_mutex_t));
 	{
 		// alloc
 		for(TensorShape_t i = 0; i < obj.shape[axis]; i++) {
@@ -101,26 +187,20 @@ void Tensor_loop_over_dim(TensorObject obj, const TensorShape_t axis, void *(*fu
 			loop_args[i].idx = i;
 			loop_args[i].args = args;
 			//pthread_create(&threads[i], NULL, func, &loop_args[i]);
-			threads[i] = Tensor_addTask( func, &loop_args[i], &jobsFinished[i]);
+			pthread_mutex_init(&jobsFinishedMutex[i], NULL);
+			pthread_cond_init(&jobsFinished[i], NULL);
+			pthread_mutex_lock(&jobsFinishedMutex[i]);
+			Tensor_addTask( func, &loop_args[i], &jobsFinishedMutex[i], &jobsFinished[i]);
 		}
 		// join
 		for(TensorShape_t i = 0; i < obj.shape[axis]; i++) {
-			// join threads and free slices.
-			//pthread_join(threads[i], NULL);
-			while(1) {
-				// wait for the thread to finish.
-				pthread_mutex_lock(&threads[i]->mutex);
-				if(jobsFinished[i]) {
-					pthread_mutex_unlock(&threads[i]->mutex);
-					break;
-				}
-				pthread_mutex_unlock(&threads[i]->mutex);
-			}
+			// wait for the threads to complete all jobs and free the slices right after.
+			pthread_cond_wait(&jobsFinished[i], &jobsFinishedMutex[i]);
 			Tensor_free(&loop_args[i].obj);
 		}
 	}
 	// free loop_args and threads.
 	free(loop_args);
 	free(jobsFinished);
-	free(threads);
+	free(jobsFinishedMutex);
 }
