@@ -1,4 +1,20 @@
-
+/**
+ * @file tensor.h
+ * @brief Tensor header file.
+ * @details This file contains the tensor object and function declarations.
+ * 
+ * @see TensorObject
+ * @see Tensor_new
+ * @see Tensor_free
+ * @see Tensor_clone
+ * @see Tensor_slice
+ * @see Tensor_get
+ * @see Tensor_set
+ * @see Tensor_write_to
+ * @see Tensor_swapaxis
+ * @see TensorShape_t
+ * @see TensorData_t
+*/
 
 /** @mainpage
  * @section intro Introduction
@@ -9,11 +25,17 @@
 
 #pragma once
 
+/**
+ * @brief Type definition for the data type used in the Tensor class.
+ * 
+ * This typedef defines the data type used in the Tensor class. By default, it is set to double.
+ * Later, this can be changed to float or long double, or even a union of all three.
+ */
 typedef double TensorData_t;
 
 
 /**
- * @typedef TensorShape_t
+ * @typedef unsigned int TensorShape_t
  * @brief Tensor shape type.
  * @details This is the type used for the shape of a tensor.
  * 	   It is unsigned to prevent negative values.
@@ -60,6 +82,7 @@ struct TensorObject {
 	TensorShape_t *shape; ///< Array of length ndim containing the size of each dimension.
 	TensorShape_t *strides; ///< Array of length ndim containing the stride of each dimension.
 	TensorData_t *data; ///< Array of length total_size containing the data.
+	// TODO: Make refcount atomic for thread safety.
 	TensorShape_t *ref_count; ///< Reference count pointer.
 	TensorShape_t offset; ///< Offset of the first element.
 		///< This is used when slicing a tensor to retain same data field for freeing.

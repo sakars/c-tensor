@@ -1,8 +1,40 @@
+/**
+ * @file parallel.h
+ * @brief Parallel computation header file.
+ * @details This file contains the tensor object and function declarations centered around parallel computation.
+ * 
+ * @see Tensor_loop_over_dim
+ * @see Tensor_init
+ * @see Tensor_cleanup
+ * 
+*/
 
 #include "tensor.h"
 #pragma once
+/**
+ * @brief Number of threads to use for parallel computation.
+ * @details This macro defines the number of threads to use for parallel computation.
+ * It is used in the thread pool.
+ * It is set to 4 by default.
+ * @todo Make this configurable at runtime.
+ * 
+ * @see Tensor_init
+ * @see Tensor_cleanup
+ * @see Tensor_loop_over_dim
+*/
 #define TENSOR_LOOP_NUM_THREADS 4
 
+/**
+ * @brief Arguments for the loop function.
+ * @details This struct contains the arguments for the loop function.
+ * It contains the tensor object, the index of the slice, and the arguments for the function.
+ * 
+ * @param obj The slice tensor object.
+ * @param idx Index of the slice.
+ * @param args Arguments for the function, passed by the user.
+ * 
+ * @see Tensor_loop_over_dim
+*/
 struct loop_args {
 	TensorObject obj;
 	TensorShape_t idx;

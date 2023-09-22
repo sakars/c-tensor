@@ -1,4 +1,18 @@
-
+/**
+ * @file constants.h
+ * @brief Constants header file.
+ * @details This file contains the tensor object and function declarations centered around constants.
+ * 
+ * @see Tensor_zeros
+ * @see Tensor_ones
+ * @see Tensor_eye
+ * @see Tensor_zeros_like
+ * @see Tensor_ones_like
+ * @see Tensor_eye_like
+ * @see Tensor_random_uniform
+ * @see Tensor_random_normal
+ * 
+*/
 #include "tensor.h"
 
 /**
