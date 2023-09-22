@@ -18,8 +18,52 @@
 
 /** @mainpage
  * @section intro Introduction
- * @see TensorObject
- * @see TensorShape_t
+ * This is the documentation for the tensor library.
+ * The goal of this library is to provide a simple, fast, and easy to use tensor library, that can be
+ * integrated into a python module.
+ * 
+ * @section features Features
+ * - N-dimensional arrays.
+ * - Sliceable.
+ * - Clonable.
+ * - Parallel computation.
+ * - Fast.
+ * - Easy to use.
+ * - Easy to extend.
+ * 
+ * @section usage Usage
+ * @subsection Building
+ * To build the library, run `make build`.
+ * @todo make build doesn't work.
+ * 
+ * @subsection example Example
+ * @code{.c}
+ * #include <stdio.h>
+ * #include <tensor.h>
+ * 
+ * int main(void) {
+ * 	// Create a new tensor of size 2x3.
+ * 	TensorObject tensor = Tensor_new(2, (TensorShape_t[]){2, 3});
+ * 
+ * 	// Set the value at index 0, 1 to 2.
+ * 	Tensor_set(&tensor, (TensorShape_t[]){0, 1}, 2);
+ * 
+ * 	// Print the value at index 0, 1.
+ * 	printf("%f\n", *Tensor_get(&tensor, (TensorShape_t[]){0, 1}));
+ * 
+ * 	// Free the tensor.
+ * 	Tensor_free(&tensor);
+ * 
+ * 	return 0;
+ * }
+ * @endcode
+ * 
+ * 
+ * @subsection run Running
+ * To run the example, run `make run`.
+ * 
+ * @section contact Contact
+ * If you have any questions, comments, or concerns, notify me in the issues section of the GitHub repository.
 */
 
 
